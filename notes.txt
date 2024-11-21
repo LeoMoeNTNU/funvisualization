@@ -1,0 +1,4 @@
+I have moved this from another repo. The goal now is to do different shit but it will be fun. 
+The first step is to have a wire move around, as if it is sending information. 
+Then I will have some other shit be around (smiley)!
+

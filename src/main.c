@@ -1,7 +1,14 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <time.h>
+
 #include <SDL.h>
 #include "./constants.h"
+
+#define RAND0255 rand()%256
+
+int randint() { return (rand() % COLORCHANGE) - COLORCHANGE / 2 ;}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Global variables
@@ -11,17 +18,56 @@ int last_frame_time = 0;
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 
+
+int clamp(int number, int min, int max)
+{
+    if(number<min)
+        return min;
+
+    if(number>max)
+        return max;
+
+    return number;
+}
+
+typedef struct Color
+{
+    char r;
+    char g;
+    char b;
+}Color_t;
+
+
+
+unsigned char colors[3*RECTANGLES*RECTANGLES]={0};
+Color_t colors2[RECTANGLES*RECTANGLES]={0};
+char basecolor=255/2;
+static SDL_Rect ballcoords={40,40,20,20};
+
+
+char randomint(){
+
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Declare two game objects for the ball and the paddle
 ///////////////////////////////////////////////////////////////////////////////
 struct game_object {
-    float x;
-    float y;
-    float width;
-    float height;
-    float vel_x;
-    float vel_y;
+    int x;
+    int y;
+    int width;
+    int height;
+    int vel_x;
+    int vel_y;
 } ball, paddle;
+//I dont know what the paddle is yet...
+
+//This one only gives the color to the first one and not to the next two. Other two are gotten by ++
+char* getTile(int x, int y){
+    return colors +3 * (x + y * RECTANGLES);
+}//no idea if the function should be static or not. 
+
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // Function to initialize our SDL window
@@ -81,7 +127,112 @@ void setup(void) {
     ball.height = 20;
     ball.vel_x = 180;
     ball.vel_y = 140;
+
+    unsigned char a=1;
+    while(a!=0){
+        printf("%d\n",a++);
+    }
+    printf("%d\n",RECTANGLES);
+    printf("%d\n",WIDTHHEIGHT);
+    for(int i=0;i<10;i++){
+        printf("%d\n",rand()%15);
+
+    }
+
+
+
+
+
 }
+
+void buildcolors(){
+
+    //setting first rgb
+    colors[0]=basecolor;
+    colors[1]=basecolor;
+    colors[2]=basecolor;
+    /*
+    *bp=basecolor;
+    *(bp+1)=basecolor;
+    *(bp+2)=basecolor;
+    
+    
+    */
+
+
+    char change;//used in the for loop, no reason to redeclare. 
+
+    char* bp=colors;
+
+    //go all the way to the right. 
+    for(int x=3;x<3*RECTANGLES;x++){
+        //think about this access pattern a bit to be sure it is correct. 
+        //I want to imitate it going downwards. 
+
+        change=randint();//this gets generated. 
+        *(bp+x)=*(bp+x-3)+change;
+        //colors[x]=(colors[x-3]+RAND0255)/2;
+        //this is legal for some dumb reason. 
+    }
+
+    //this goes down...
+    for(int x=1;x<RECTANGLES;x++){
+
+        //for doing it for not only one but all 3. 
+        for(int coloroffset=0;coloroffset<3;coloroffset++){
+            char *colorpointer=bp+coloroffset;
+            change = randint();
+
+            //*(colorpointer+3*RECTANGLES*x)=*(colorpointer+3*RECTANGLES*(x-1))+change;//no idea that this worked
+            colorpointer[3 * RECTANGLES * x] = colorpointer[3 * RECTANGLES * (x - 1)] + change; // no idea that this worked
+            //colorpointer[3*RECTANGLES*x]=(colorpointer[3*RECTANGLES*(x-1)]+RAND0255)/2;
+        }   
+    }
+    //TODO: all the rest of the colors. 
+    char* leftcp;
+    char* uppercp;
+    char* upperleftcp;
+    char* currp;
+    for(int x=1;x<RECTANGLES;x++){
+        for(int y=1;y<RECTANGLES;y++){
+            change=randint();
+            currp=colors+3*(x+y*RECTANGLES);
+            leftcp=currp-3;
+            uppercp=currp-3*RECTANGLES;
+            upperleftcp=currp-3*(RECTANGLES+1);
+            for(int i=0;i<3;i++){
+                change = randint();
+                *(currp+i)=(*(leftcp+i)+*(uppercp+i)+*(upperleftcp+i))/3+change;
+                //*(currp + i) = (*(leftcp + i) + *(uppercp + i)+RAND0255) / 3;
+            }
+        }
+    }
+
+
+
+}
+//not made yet...
+void displaycolors(){
+
+    for(int row=0;row<RECTANGLES;row++){
+        for(int col=0;col<RECTANGLES;col++){
+            char *cp=colors+3*(row+col*RECTANGLES);//same as just adding...
+            SDL_SetRenderDrawColor(renderer, *cp, *(cp+1), *(cp+2), 255);
+            SDL_Rect fornow = {row * WIDTHHEIGHT, col * WIDTHHEIGHT, WIDTHHEIGHT, WIDTHHEIGHT};
+            // ballcoords={x*WIDTHHEIGHT,y*WIDTHHEIGHT,WIDTHHEIGHT,WIDTHHEIGHT};
+            SDL_RenderFillRect(renderer, &fornow);
+        }
+    }
+
+    SDL_RenderPresent(renderer);
+
+    /* These are for future use. 
+      SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderFillRect(renderer, &ballcoords);
+    */
+  
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // Update function with a fixed time step
@@ -130,8 +281,15 @@ void render(void) {
         (int)ball.width,
         (int)ball.height
     };
+    //I dont like this construction. Should be static.  
+    //I could make lots of this static. 
+
+
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
     SDL_RenderFillRect(renderer, &ball_rect);
+
+    SDL_RenderFillRect(renderer,&ballcoords);
 
     SDL_RenderPresent(renderer);
 }
@@ -149,14 +307,17 @@ void destroy_window(void) {
 // Main function
 ///////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* args[]) {
+    srand(time(NULL));
     game_is_running = initialize_window();
 
-    setup();
+    //setup(); not using it yet. 
+    buildcolors();
+    displaycolors();
 
     while (game_is_running) {
-        process_input();
-        update();
-        render();
+        process_input(); 
+        //update(); Take this one back to get the ball moving. 
+        //render(); this one may fuck with my shit but is nice. 
     }
 
     destroy_window();
